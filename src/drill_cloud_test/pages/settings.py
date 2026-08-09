@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from playwright.sync_api import Locator, expect
 
 from .base import BasePage
@@ -16,7 +18,8 @@ class SettingsPage(BasePage):
             expect(self.page.get_by_role("heading", name=section, exact=True)).to_be_visible()
 
     def number_field(self, label: str) -> Locator:
-        return self.page.get_by_label(label, exact=True)
+        accessible_name = re.compile(rf"^{re.escape(label)}(?:\s|$)")
+        return self.page.get_by_role("spinbutton", name=accessible_name)
 
     def read_number(self, label: str) -> float:
         return float(self.number_field(label).input_value())
