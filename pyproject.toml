@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "drill-cloud-test"
+version = "0.1.0"
+description = "End-to-end smoke tests for Drill Cloud"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "playwright>=1.54,<2",
+  "pytest>=8.4,<9",
+  "pytest-base-url>=2.1,<3",
+  "pytest-html>=4.1,<5",
+  "pytest-playwright>=0.7,<1",
+  "python-dotenv>=1.1,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.17,<2",
+  "ruff>=0.12,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/drill_cloud_test"]
+
+[tool.pytest.ini_options]
+addopts = [
+  "-ra",
+  "--strict-config",
+  "--strict-markers",
+  "--tb=short",
+  "--tracing=retain-on-failure",
+  "--screenshot=only-on-failure",
+  "--video=retain-on-failure",
+  "--output=test-results",
+]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "case(id): идентификатор сценария из SMOKE_TEST_SCENARIO.md",
+  "p0: обязательный smoke при каждой выкладке",
+  "p1: расширенный предрелизный smoke",
+  "p2: негативные и нефункциональные проверки",
+  "api: проверка HTTP API",
+  "auth: авторизация и сессия",
+  "edges: список и обзор буровых",
+  "current: текущие показатели и live-график",
+  "history: архивные графики",
+  "video: live-видео",
+  "settings: пользовательские UI-настройки",
+  "serial: тест нельзя выполнять параллельно с другими",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["drill_cloud_test"]
