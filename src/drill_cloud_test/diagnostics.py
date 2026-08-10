@@ -5,9 +5,12 @@ from dataclasses import dataclass, field
 from playwright.sync_api import ConsoleMessage, Error, Request
 
 
-@dataclass(slots=True)
+@dataclass
 class BrowserDiagnostics:
     """Collect browser-side failures without mixing them with test actions."""
+
+    # Playwright stores wrapped bound-method handlers on their owner instance.
+    # Therefore this class intentionally keeps __dict__ and must not use slots.
 
     console_errors: list[str] = field(default_factory=list)
     page_errors: list[str] = field(default_factory=list)

@@ -8,7 +8,7 @@ from .base import EdgeSectionPage
 class IndicatorsPage(EdgeSectionPage):
     @property
     def widgets(self) -> Locator:
-        return self.page.locator(".metric-widget")
+        return self.page.get_by_test_id("metric-widget")
 
     def open_edge(self, edge_id: str) -> None:
         self.open(self.edge_path(edge_id, "/indicators"))
@@ -25,7 +25,7 @@ class IndicatorsPage(EdgeSectionPage):
         self.page.get_by_placeholder("Поиск показателя").fill("")
 
     def widget_for_tag(self, tag: str) -> Locator:
-        return self.widgets.filter(has=self.page.locator(".metric-widget__id", has_text=tag))
+        return self.page.locator(f'[data-testid="metric-widget"][data-tag="{tag}"]')
 
     def value_for_tag(self, tag: str) -> str:
         widget = self.widget_for_tag(tag)

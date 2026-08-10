@@ -10,7 +10,7 @@ from .base import EdgeSectionPage
 class ArchivePage(EdgeSectionPage):
     @property
     def panels(self) -> Locator:
-        return self.page.locator(".history-chart-panel")
+        return self.page.get_by_test_id("history-chart-panel")
 
     def open_edge(self, edge_id: str) -> None:
         self.open(self.edge_path(edge_id, "/archive"))
@@ -27,7 +27,7 @@ class ArchivePage(EdgeSectionPage):
     def open_picker(self, panel: Locator | None = None) -> Locator:
         target = panel or self.panels.first
         target.get_by_role("button", name="Показать выбор показателей").click()
-        dropdown = target.locator(".history-tag-picker__dropdown")
+        dropdown = target.get_by_test_id("history-tag-picker-dropdown")
         expect(dropdown).to_be_visible()
         return dropdown
 
@@ -44,7 +44,7 @@ class ArchivePage(EdgeSectionPage):
         return selected_text
 
     def assert_chart_terminal_state(self, *, require_data: bool) -> None:
-        data = self.page.locator(".history-chart-shell").first
+        data = self.page.get_by_test_id("history-chart").first
         empty = self.page.get_by_text(re.compile(r"Нет данных для выбранного диапазона"), exact=True).first
         expect(data.or_(empty)).to_be_visible()
         if require_data:

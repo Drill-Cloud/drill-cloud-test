@@ -9,7 +9,9 @@ description = "End-to-end smoke tests for Drill Cloud"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "pillow>=11,<13",
   "playwright>=1.54,<2",
+  "psycopg[binary]>=3.2,<4",
   "pytest>=8.4,<9",
   "pytest-base-url>=2.1,<3",
   "pytest-html>=4.1,<5",
@@ -20,7 +22,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "mypy>=1.17,<2",
+  "pyyaml>=6,<7",
   "ruff>=0.12,<1",
+  "types-pyyaml>=6,<7",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -52,6 +56,10 @@ markers = [
   "video: live-видео",
   "settings: пользовательские UI-настройки",
   "serial: тест нельзя выполнять параллельно с другими",
+  "unit: проверка инфраструктуры самого тестового проекта",
+  "integration: проверка реальных SSE, WebSocket и внешних сервисов",
+  "visual: screenshot и responsive проверки",
+  "accessibility: базовые проверки доступности и клавиатуры",
 ]
 
 [tool.ruff]

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-
 from playwright.sync_api import Locator, expect
 
 from .base import BasePage
@@ -10,7 +8,7 @@ from .base import BasePage
 class DashboardPage(BasePage):
     @property
     def cards(self) -> Locator:
-        return self.page.locator(".edge-card")
+        return self.page.get_by_test_id("edge-card")
 
     @property
     def search(self) -> Locator:
@@ -22,8 +20,7 @@ class DashboardPage(BasePage):
         expect(self.page.get_by_label("Буровые установки")).to_be_visible()
 
     def card(self, edge_id: str) -> Locator:
-        exact_id = self.page.locator(".edge-card__title span").filter(has_text=re.compile(rf"^{re.escape(edge_id)}$"))
-        return self.cards.filter(has=exact_id)
+        return self.page.locator(f'[data-testid="edge-card"][data-edge-id="{edge_id}"]')
 
     def discover_edge_id(self) -> str:
         expect(self.cards.first).to_be_visible()
