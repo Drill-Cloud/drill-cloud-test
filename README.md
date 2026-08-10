@@ -11,10 +11,14 @@ drill-cloud-test/
 ├── docs/SMOKE_AUTOMATION_MATRIX.md   # соответствие ручному smoke-сценарию
 ├── scripts/
 │   ├── bootstrap.sh                  # установка Python-зависимостей и браузера
-│   └── run-smoke.sh                  # стандартный запуск с HTML-отчётом
+│   ├── run-smoke.sh                  # стандартный запуск с HTML-отчётом
+│   ├── seed-test-data.sh             # управляемые e2e-* данные
+│   └── publish-live-data.sh          # меняющийся live-тег
 ├── src/drill_cloud_test/
 │   ├── config.py                     # единый источник конфигурации окружения
 │   ├── diagnostics.py                # console/page/network diagnostics
+│   ├── api.py, sessions.py           # API и изолированные ролевые сессии
+│   ├── accessibility.py, visual.py   # UI quality-проверки
 │   └── pages/                        # Page Objects без тестовой бизнес-логики
 ├── tests/                             # сценарии, сгруппированные по разделам продукта
 ├── .env.example
@@ -23,7 +27,16 @@ drill-cloud-test/
 
 ## Быстрый старт
 
-Требуется Python 3.11+ и Bash. В Windows команды можно выполнять через Git Bash.
+### Что необходимо для запуска
+
+- Python 3.11 или новее, доступный как `python3`, `python` либо `py`;
+- Bash: в Windows рекомендуется Git Bash, в Linux/macOS используется системный Bash;
+- сетевой доступ к UI, Cloud API и Keycloak выбранного стенда;
+- тестовая учётная запись Keycloak, если авторизация включена;
+- разрешённый redirect URI для адреса тестируемого UI;
+- для полного набора — подготовленные буровые, история, live-данные, камера и ролевые учётные записи.
+
+Docker для обычного запуска не требуется. Доступ к PostgreSQL нужен только для автоматического создания и удаления управляемых `e2e-*` данных.
 
 ```bash
 cd /c/Users/myart/drill/drill-cloud-test
@@ -59,6 +72,75 @@ bash scripts/run-smoke.sh --headed
 bash scripts/run-smoke.sh --priority all
 ```
 
+## Основные команды
+
+### Установка окружения
+
+```bash
+bash scripts/bootstrap.sh
+```
+
+Создаёт `.venv`, устанавливает проект с dev-зависимостями и загружает Chromium для Playwright. Команду достаточно выполнить при первом запуске и после изменения зависимостей в `pyproject.toml`.
+
+```bash
+bash scripts/bootstrap.sh --all-browsers
+```
+
+Дополнительно устанавливает Firefox и WebKit. Это нужно для кроссбраузерного прогона и release workflow.
+
+### Запуск smoke-тестов
+
+```bash
+bash scripts/run-smoke.sh
+```
+
+Запускает обязательный профиль P0 и создаёт автономный отчёт `reports/smoke-report.html`.
+
+```bash
+bash scripts/run-smoke.sh --headed
+```
+
+Запускает P0 с видимым браузером. Режим удобен при разработке и разборе падений. Для более медленного выполнения можно добавить в `.env` `E2E_SLOW_MO_MS=500`.
+
+```bash
+bash scripts/run-smoke.sh --priority p1
+bash scripts/run-smoke.sh --priority p2
+bash scripts/run-smoke.sh --priority all
+```
+
+- `p0` — минимальный обязательный smoke;
+- `p1` — расширенные интеграционные сценарии;
+- `p2` — негативные, accessibility, responsive и runtime-проверки;
+- `all` — вся коллекция без фильтра по приоритету.
+
+Перед запуском необходимы настроенный `.env`, доступный стенд и установленный браузер Playwright. Сценарии, для которых не заданы специальные данные или учётные записи, будут отмечены как `SKIPPED` с указанием причины.
+
+### Управляемые тестовые данные
+
+```bash
+bash scripts/seed-test-data.sh
+```
+
+Создаёт или обновляет безопасные буровые и показатели с префиксом `e2e-`, current-значения и историю. Необходим доступный `E2E_DATABASE_URL`. Если задан `E2E_VIDEO_WS_URL`, также создаётся тестовая камера.
+
+```bash
+bash scripts/seed-test-data.sh cleanup
+```
+
+Удаляет только созданные E2E-данные. Скрипт откажется работать с ID буровой без префикса `e2e-`.
+
+```bash
+bash scripts/publish-live-data.sh --duration 300
+```
+
+Пять минут отправляет меняющееся значение `e2e-live` через ingest API. Команда нужна для достоверной проверки SSE и live-графика. Требуются `E2E_API_URL`, `E2E_EDGE_ID` и, если ingest защищён, `E2E_INGEST_API_KEY`.
+
+Интервал публикации можно изменить:
+
+```bash
+bash scripts/publish-live-data.sh --duration 600 --interval 2
+```
+
 ## Ручная установка
 
 ```bash
@@ -91,7 +173,10 @@ bash scripts/bootstrap.sh --all-browsers
 | `E2E_API_URL` | базовый URL API с `/api` | всегда |
 | `E2E_AUTH_MODE` | `auto`, `required` или `disabled` | по умолчанию `auto` |
 | `E2E_USERNAME`, `E2E_PASSWORD` | тестовая учётная запись Keycloak | при включённом SSO |
+| `E2E_ADMIN_*`, `E2E_EDGE_*`, `E2E_NO_ROLE_*` | отдельные учётные записи для матрицы ролей | для role-тестов |
+| `E2E_API_TOKEN` | готовый Bearer token вместо перехвата токена UI | опционально |
 | `E2E_EDGE_ID` | буровая с current/history | рекомендуется; иначе первая карточка |
+| `E2E_FORBIDDEN_EDGE_ID` | буровая, запрещённая edge-пользователю | для проверки 403 |
 | `E2E_VIDEO_EDGE_ID` | буровая с рабочей камерой | для VIDEO-01 |
 | `E2E_NO_VIDEO_EDGE_ID` | буровая без камер | для VIDEO-03 |
 | `E2E_INDICATOR_QUERY` | стабильный поиск показателя | опционально |
@@ -99,8 +184,14 @@ bash scripts/bootstrap.sh --all-browsers
 | `E2E_LIVE_TAG` | гарантированно меняющийся тег | для CURRENT-02 |
 | `E2E_REQUIRE_HISTORY_DATA` | требовать canvas, не принимать empty state | подготовленный стенд |
 | `E2E_REQUIRE_VIDEO_PLAYBACK` | ждать фактическое воспроизведение | подготовленный поток |
+| `E2E_DATABASE_URL` | PostgreSQL для seed/cleanup | только подготовка данных |
+| `E2E_INGEST_API_KEY` | ключ `/ingest`, если он включён | live publisher |
+| `E2E_VISUAL_ENABLED` | включить visual regression | по умолчанию `false` |
+| `E2E_UPDATE_SNAPSHOTS` | осознанно перезаписать visual baselines | только локально |
+| `E2E_UI_COMMIT`, `E2E_CLOUD_COMMIT` | версии стенда в отчёте | рекомендуется в CI |
 
 Полный шаблон и значения по умолчанию находятся в [.env.example](.env.example).
+Подготовка воспроизводимых данных подробно описана в [docs/TEST_DATA.md](docs/TEST_DATA.md).
 
 ## Команды pytest
 
@@ -116,6 +207,15 @@ VENV_PYTHON=.venv/Scripts/python.exe  # Git Bash в Windows
 
 # Один функциональный раздел
 "$VENV_PYTHON" -m pytest -m history
+
+# API-контракты и негативные ответы
+"$VENV_PYTHON" -m pytest -m api
+
+# SSE и WebSocket
+"$VENV_PYTHON" -m pytest -m integration
+
+# Доступность и responsive layout
+"$VENV_PYTHON" -m pytest -m accessibility
 
 # Один сценарий
 "$VENV_PYTHON" -m pytest tests/test_settings.py -v
@@ -135,6 +235,24 @@ VENV_PYTHON=.venv/Scripts/python.exe  # Git Bash в Windows
 
 Артефакты и `.env` исключены из git.
 
+## Visual regression
+
+Visual-тесты выключены по умолчанию. Первый утверждённый эталон создаётся только после ручной проверки страницы:
+
+```bash
+E2E_VISUAL_ENABLED=true E2E_UPDATE_SNAPSHOTS=true \
+  "$VENV_PYTHON" -m pytest -m visual --browser chromium
+```
+
+Обычная проверка не меняет эталоны:
+
+```bash
+E2E_VISUAL_ENABLED=true \
+  "$VENV_PYTHON" -m pytest -m visual --browser chromium
+```
+
+Эталоны лежат в `tests/visual_baselines/<browser>/`. При несовпадении фактический PNG и diff сохраняются в `test-results/visual/`.
+
 ## Запуск против локального UI
 
 1. Запустите backend `cloud` либо настройте `DEV_API_URL` UI на доступный dev backend.
@@ -142,6 +260,8 @@ VENV_PYTHON=.venv/Scripts/python.exe  # Git Bash в Windows
 3. Укажите `E2E_BASE_URL=http://localhost:5173` и `E2E_API_URL=http://localhost:5173/api`.
 4. Убедитесь, что redirect URI `http://localhost:5173/*` разрешён в клиенте Keycloak.
 5. Запустите P0.
+
+Текущие Page Objects опираются на стабильные `data-testid`, добавленные в ветку `dev` UI. Перед запуском нового набора против общего стенда эту версию UI нужно сначала развернуть.
 
 При тестировании уже развёрнутого стенда укажите его HTTPS URL в обеих переменных; если API находится под тем же origin, добавьте `/api` в `E2E_API_URL`.
 
@@ -156,14 +276,68 @@ VENV_PYTHON=.venv/Scripts/python.exe  # Git Bash в Windows
 
 ## GitHub Actions
 
-Workflow `.github/workflows/smoke.yml` запускается вручную через **Actions → Drill Cloud smoke → Run workflow**. При запуске выбираются стенд, приоритет и браузер.
+В проекте три workflow:
+
+- `quality.yml` — lint, форматирование, mypy, unit и сбор коллекции на каждый PR;
+- `smoke.yml` — ручной запуск, nightly и событие `dev-deployed`;
+- `release.yml` — P0+P1+P2 в Chromium и Firefox для релиза.
 
 В repository secrets необходимо создать:
 
 - `E2E_USERNAME`;
-- `E2E_PASSWORD`.
+- `E2E_PASSWORD`;
+- ролевые пары `E2E_ADMIN_*`, `E2E_EDGE_*`, `E2E_NO_ROLE_*`;
+- при автоматическом seed — `E2E_DATABASE_URL` и, при необходимости, `E2E_INGEST_API_KEY`.
 
 ID буровых и тестовые теги задаются через repository variables с теми же именами, что в `.env.example`. После каждого CI-прогона HTML-отчёт, trace, screenshot и video публикуются единым artifact на 14 дней.
+
+### Проверки PR тестового проекта
+
+Workflow `.github/workflows/quality.yml` уже запускается автоматически для каждого PR в `drill-cloud-test`. Он не использует секреты и выполняет:
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy src tests scripts
+python -m pytest -m unit -v
+python -m pytest --collect-only -q
+```
+
+Чтобы запретить merge с ошибками, в GitHub откройте `Settings → Branches`, необходимо правило для `main`, включить `Require status checks to pass before merging` и выбрать check `Test project quality / quality`.
+
+### E2E после развёртывания UI или cloud
+
+Полноценный Playwright-прогон требует секретов и уже работающего стенда. Поэтому рекомендуемый порядок для PR проектов UI/cloud:
+
+1. Собрать и развернуть PR либо ветку `dev` на тестовом стенде.
+2. После успешного deployment отправить событие `dev-deployed` в `drill-cloud-test`.
+3. Workflow `smoke.yml` запустит выбранный браузер, подготовит данные при включённом seed и загрузит отчёт с Playwright-артефактами.
+
+В deployment workflow UI/cloud необходимо добавить шаг:
+
+```yaml
+- name: Start Drill Cloud E2E smoke
+  env:
+    GH_TOKEN: ${{ secrets.E2E_REPOSITORY_TOKEN }}
+  run: |
+    curl --fail-with-body \
+      --request POST \
+      --header "Accept: application/vnd.github+json" \
+      --header "Authorization: Bearer $GH_TOKEN" \
+      --header "X-GitHub-Api-Version: 2022-11-28" \
+      https://api.github.com/repos/Drill-Cloud/drill-cloud-test/dispatches \
+      --data '{"event_type":"dev-deployed"}'
+```
+
+`E2E_REPOSITORY_TOKEN` хранится в secrets репозитория UI/cloud и должен иметь право запускать Actions в `drill-cloud-test`.
+
+В `drill-cloud-test → Settings → Secrets and variables → Actions` необходимо создать:
+
+- secrets: `E2E_USERNAME`, `E2E_PASSWORD`, ролевые пары `E2E_ADMIN_*`, `E2E_EDGE_*`, `E2E_NO_ROLE_*`;
+- при seed/publisher: `E2E_DATABASE_URL`, `E2E_INGEST_API_KEY`;
+- variables: `E2E_BASE_URL`, `E2E_API_URL`, `E2E_*_EDGE_ID`, запросы тегов и `E2E_VIDEO_WS_URL`.
+
+GitHub не передаёт repository secrets workflow из внешнего fork. Поэтому PR из fork должен проходить безопасный `quality.yml`, а авторизованный E2E следует запускать после доверенного deployment, вручную через `workflow_dispatch` либо через защищённый GitHub Environment с approval.
 
 ## Проверка качества самого тестового проекта
 
@@ -172,8 +346,10 @@ VENV_PYTHON=.venv/Scripts/python.exe  # Git Bash в Windows
 # VENV_PYTHON=.venv/bin/python        # Linux/macOS
 
 "$VENV_PYTHON" -m ruff check .
-"$VENV_PYTHON" -m mypy src
+"$VENV_PYTHON" -m ruff format --check .
+"$VENV_PYTHON" -m mypy src tests scripts
+"$VENV_PYTHON" -m pytest -m unit
 "$VENV_PYTHON" -m pytest --collect-only
 ```
 
-Page Objects используют преимущественно role/label/text-селекторы. CSS-классы применены только там, где у визуальных элементов ECharts и карточек пока нет стабильных `data-testid` или ARIA-имён.
+Page Objects используют role/label и добавленные в UI `data-testid`. CSS остаётся только для canvas/ECharts и диагностических проверок, где это естественная граница компонента.

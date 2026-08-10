@@ -1,0 +1,35 @@
+name: Test project quality
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          python -m playwright install --with-deps chromium
+
+      - name: Static checks
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m mypy src tests scripts
+
+      - name: Infrastructure unit tests
+        run: python -m pytest -m unit -v
+
+      - name: Collect complete suite
+        run: python -m pytest --collect-only -q
+

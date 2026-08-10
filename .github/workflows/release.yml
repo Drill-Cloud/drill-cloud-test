@@ -1,0 +1,60 @@
+name: Release regression
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      E2E_BASE_URL: ${{ vars.E2E_RELEASE_BASE_URL }}
+      E2E_API_URL: ${{ vars.E2E_RELEASE_API_URL }}
+      E2E_BROWSER: ${{ matrix.browser }}
+      E2E_AUTH_MODE: required
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_EDGE_USERNAME: ${{ secrets.E2E_EDGE_USERNAME }}
+      E2E_EDGE_PASSWORD: ${{ secrets.E2E_EDGE_PASSWORD }}
+      E2E_NO_ROLE_USERNAME: ${{ secrets.E2E_NO_ROLE_USERNAME }}
+      E2E_NO_ROLE_PASSWORD: ${{ secrets.E2E_NO_ROLE_PASSWORD }}
+      E2E_EDGE_ID: ${{ vars.E2E_EDGE_ID }}
+      E2E_FORBIDDEN_EDGE_ID: ${{ vars.E2E_FORBIDDEN_EDGE_ID }}
+      E2E_VIDEO_EDGE_ID: ${{ vars.E2E_VIDEO_EDGE_ID }}
+      E2E_NO_VIDEO_EDGE_ID: ${{ vars.E2E_NO_VIDEO_EDGE_ID }}
+      E2E_HISTORY_TAG_QUERY: ${{ vars.E2E_HISTORY_TAG_QUERY }}
+      E2E_LIVE_TAG: ${{ vars.E2E_LIVE_TAG }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          pip install -e ".[dev]"
+          python -m playwright install --with-deps "${{ matrix.browser }}"
+      - name: Run release regression
+        run: |
+          mkdir -p reports
+          python -m pytest -m "p0 or p1 or p2" -v \
+            --html=reports/release-report.html \
+            --self-contained-html \
+            --junitxml=reports/junit.xml
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.browser }}
+          path: |
+            reports/
+            test-results/
+          retention-days: 30

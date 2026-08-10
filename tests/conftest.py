@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from playwright.sync_api import Browser, Page
+from playwright.sync_api import Browser, Page, Playwright
 
+from drill_cloud_test.api import DrillCloudApi, capture_bearer_token, create_api_client
 from drill_cloud_test.config import TestConfig
 from drill_cloud_test.diagnostics import BrowserDiagnostics
 from drill_cloud_test.pages import DashboardPage
 from drill_cloud_test.pages.login import ensure_authenticated
+from drill_cloud_test.sessions import AuthenticatedSessionFactory
 
 
 def _safe_artifact_name(node_id: str) -> str:
@@ -75,6 +77,14 @@ def browser_context_args(
     }
 
 
+@pytest.fixture(scope="session")
+def role_session_factory(
+    browser: Browser, test_config: TestConfig, tmp_path_factory: pytest.TempPathFactory
+) -> AuthenticatedSessionFactory:
+    state_directory = tmp_path_factory.mktemp("role-auth")
+    return AuthenticatedSessionFactory(browser, test_config, state_directory)
+
+
 @pytest.fixture
 def diagnostics(page: Page, request: pytest.FixtureRequest) -> Generator[BrowserDiagnostics, None, None]:
     result = BrowserDiagnostics()
@@ -105,6 +115,33 @@ def edge_id(app_page: Page, test_config: TestConfig) -> str:
     return DashboardPage(app_page).discover_edge_id()
 
 
+@pytest.fixture
+def api_token(app_page: Page, test_config: TestConfig) -> str | None:
+    """Capture the same bearer token that the UI sends to Drill Cloud API."""
+    if test_config.api_token:
+        return test_config.api_token
+    if test_config.auth_mode == "disabled":
+        return None
+
+    token = capture_bearer_token(app_page)
+    if token:
+        return token
+    if test_config.auth_mode == "required":
+        raise AssertionError("UI не отправил bearer token в запросе /api/edge")
+    return None
+
+
+@pytest.fixture
+def api_client(
+    playwright: Playwright, test_config: TestConfig, api_token: str | None
+) -> Generator[DrillCloudApi, None, None]:
+    client = create_api_client(playwright, test_config.api_url, api_token)
+    try:
+        yield client
+    finally:
+        client.close()
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]) -> Generator[None, Any, None]:
     outcome = yield
@@ -121,6 +158,8 @@ def pytest_report_header(config: pytest.Config) -> list[str]:
     return [
         f"Drill Cloud UI: {test_config.base_url}",
         f"Drill Cloud API: {test_config.api_url}",
+        f"UI commit: {test_config.ui_commit or 'not specified'}",
+        f"Cloud commit: {test_config.cloud_commit or 'not specified'}",
         f"Browser: {test_config.browser}; headless={test_config.headless}",
     ]
 

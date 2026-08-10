@@ -1,4 +1,4 @@
-name: Drill Cloud smoke
+name: Dev smoke
 
 on:
   workflow_dispatch:
@@ -6,80 +6,105 @@ on:
       base_url:
         description: UI URL
         required: true
-        default: https://alpha.drillcloud.ru
+        default: https://dev.drillcloud.ru
       api_url:
         description: Cloud API URL including /api
         required: true
-        default: https://alpha.drillcloud.ru/api
+        default: https://dev.drillcloud.ru/api
       priority:
-        description: Test priority
+        description: Test profile
         required: true
         default: p0
         type: choice
-        options: [p0, p1, all]
+        options: [p0, p1, p2, nightly, all]
       browser:
         description: Browser
         required: true
         default: chromium
         type: choice
         options: [chromium, firefox, webkit]
+  repository_dispatch:
+    types: [dev-deployed]
+  schedule:
+    - cron: "30 1 * * *"
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
-      E2E_BASE_URL: ${{ inputs.base_url }}
-      E2E_API_URL: ${{ inputs.api_url }}
-      E2E_BROWSER: ${{ inputs.browser }}
+      E2E_BASE_URL: ${{ inputs.base_url || vars.E2E_BASE_URL }}
+      E2E_API_URL: ${{ inputs.api_url || vars.E2E_API_URL }}
+      E2E_BROWSER: ${{ inputs.browser || 'chromium' }}
       E2E_AUTH_MODE: required
       E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_EDGE_USERNAME: ${{ secrets.E2E_EDGE_USERNAME }}
+      E2E_EDGE_PASSWORD: ${{ secrets.E2E_EDGE_PASSWORD }}
+      E2E_NO_ROLE_USERNAME: ${{ secrets.E2E_NO_ROLE_USERNAME }}
+      E2E_NO_ROLE_PASSWORD: ${{ secrets.E2E_NO_ROLE_PASSWORD }}
+      E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      E2E_INGEST_API_KEY: ${{ secrets.E2E_INGEST_API_KEY }}
       E2E_EDGE_ID: ${{ vars.E2E_EDGE_ID }}
+      E2E_FORBIDDEN_EDGE_ID: ${{ vars.E2E_FORBIDDEN_EDGE_ID }}
       E2E_VIDEO_EDGE_ID: ${{ vars.E2E_VIDEO_EDGE_ID }}
       E2E_NO_VIDEO_EDGE_ID: ${{ vars.E2E_NO_VIDEO_EDGE_ID }}
+      E2E_VIDEO_WS_URL: ${{ vars.E2E_VIDEO_WS_URL }}
       E2E_INDICATOR_QUERY: ${{ vars.E2E_INDICATOR_QUERY }}
       E2E_HISTORY_TAG_QUERY: ${{ vars.E2E_HISTORY_TAG_QUERY }}
       E2E_LIVE_TAG: ${{ vars.E2E_LIVE_TAG }}
+      E2E_UI_COMMIT: ${{ vars.E2E_UI_COMMIT }}
+      E2E_CLOUD_COMMIT: ${{ vars.E2E_CLOUD_COMMIT }}
+      TEST_PROFILE: ${{ inputs.priority || (github.event_name == 'schedule' && 'nightly') || 'p0' }}
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install test dependencies
-        run: pip install -e ".[dev]"
-
-      - name: Install Playwright browser
-        run: python -m playwright install --with-deps "${{ inputs.browser }}"
-
-      - name: Check test code
+      - name: Install dependencies and browser
         run: |
-          python -m ruff check .
-          python -m mypy src
+          pip install -e ".[dev]"
+          python -m playwright install --with-deps "$E2E_BROWSER"
+
+      - name: Seed deterministic E2E data
+        if: vars.E2E_SEED_ENABLED == 'true'
+        run: python scripts/seed_test_data.py seed
 
       - name: Run smoke suite
         shell: bash
         run: |
+          mkdir -p reports
           marker=()
-          if [[ "${{ inputs.priority }}" != "all" ]]; then
-            marker=(-m "${{ inputs.priority }}")
+          case "$TEST_PROFILE" in
+            nightly) marker=(-m "p0 or p1") ;;
+            all) ;;
+            *) marker=(-m "$TEST_PROFILE") ;;
+          esac
+
+          publisher_pid=""
+          if [[ "${{ vars.E2E_PUBLISH_LIVE }}" == "true" ]]; then
+            python scripts/publish_live_data.py --duration 2400 > reports/live-publisher.log 2>&1 &
+            publisher_pid=$!
           fi
+          trap '[[ -n "$publisher_pid" ]] && kill "$publisher_pid" || true' EXIT
+
           python -m pytest "${marker[@]}" -v \
             --html=reports/smoke-report.html \
-            --self-contained-html
+            --self-contained-html \
+            --junitxml=reports/junit.xml
 
-      - name: Upload smoke report and Playwright artifacts
+      - name: Upload report and Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-${{ inputs.browser }}-${{ inputs.priority }}
+          name: smoke-${{ env.E2E_BROWSER }}-${{ env.TEST_PROFILE }}
           path: |
             reports/
             test-results/
           if-no-files-found: warn
           retention-days: 14
-
