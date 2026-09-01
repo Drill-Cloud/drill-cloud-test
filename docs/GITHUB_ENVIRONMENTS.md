@@ -20,6 +20,9 @@ Environment, профиль и браузер выбираются вручну�
 | `E2E_LIVE_WAIT_SECONDS` | `30` | `30` | `30` |
 | `E2E_SSE_OBSERVE_SECONDS` | `8` | `8` | `8` |
 | `E2E_MAX_CURRENT_REQUESTS` | `12` | `12` | `12` |
+| `REPORTPORTAL_ENABLED` | `true` | `true` | `true` |
+| `REPORTPORTAL_ENDPOINT` | `https://reportportal.drillcloud.ru` | `https://reportportal.drillcloud.ru` | `https://reportportal.drillcloud.ru` |
+| `REPORTPORTAL_PROJECT` | `drill_cloud` | `drill_cloud` | `drill_cloud` |
 
 Начальная конфигурация намеренно не включает seed и live publisher. Она безопасна для всех стендов и запускает P0 по первой буровой, доступной основной тестовой учётной записи.
 
@@ -29,10 +32,13 @@ Environment, профиль и браузер выбираются вручну�
 |---|---|
 | `E2E_USERNAME` | логин отдельного пользователя Keycloak для автоматических тестов |
 | `E2E_PASSWORD` | пароль этого пользователя |
+| `REPORTPORTAL_API_KEY` | API key отдельного технического пользователя ReportPortal |
 
 Основному пользователю назначьте `drill-admin` либо все необходимые роли `drill-edge-<edge-id>`. Не используйте личную или `kc_admin` учётную запись.
 
 Если один Keycloak realm обслуживает все три стенда, допустимо сохранить одинаковую пару в каждом Environment. Раздельное хранение всё равно полезно: пароль можно заменить на одном контуре без изменения workflow.
+
+Развёртывание ReportPortal, создание проекта и получение API key описаны в [REPORTPORTAL.md](REPORTPORTAL.md). Чтобы временно отключить публикацию для одного контура без изменения workflow, задайте в нём `REPORTPORTAL_ENABLED=false`.
 
 ## Secrets для расширенной проверки ролей
 

@@ -63,6 +63,10 @@ jobs:
       E2E_VISUAL_ENABLED: ${{ vars.E2E_VISUAL_ENABLED }}
       E2E_UI_COMMIT: ${{ vars.E2E_UI_COMMIT }}
       E2E_CLOUD_COMMIT: ${{ vars.E2E_CLOUD_COMMIT }}
+      REPORTPORTAL_ENABLED: ${{ vars.REPORTPORTAL_ENABLED }}
+      RP_ENDPOINT: ${{ vars.REPORTPORTAL_ENDPOINT }}
+      RP_PROJECT: ${{ vars.REPORTPORTAL_PROJECT }}
+      RP_API_KEY: ${{ secrets.REPORTPORTAL_API_KEY }}
       TEST_PROFILE: ${{ inputs.profile }}
       TARGET_ENVIRONMENT: ${{ inputs.environment }}
 
@@ -140,7 +144,23 @@ jobs:
           fi
           trap '[[ -n "$publisher_pid" ]] && kill "$publisher_pid" || true' EXIT
 
-          python -m pytest "${marker[@]}" -v \
+          reportportal=()
+          if [[ "$REPORTPORTAL_ENABLED" == "true" ]]; then
+            if [[ -z "$RP_ENDPOINT" || -z "$RP_PROJECT" || -z "$RP_API_KEY" ]]; then
+              echo "::warning::ReportPortal is enabled, but endpoint, project or API key is missing; publishing is skipped"
+            else
+              reportportal=(
+                --reportportal
+                -o "rp_endpoint=$RP_ENDPOINT"
+                -o "rp_project=$RP_PROJECT"
+                -o "rp_launch=Drill Cloud $TARGET_ENVIRONMENT / $TEST_PROFILE / $E2E_BROWSER / GitHub #$GITHUB_RUN_NUMBER"
+                -o "rp_launch_attributes=environment:$TARGET_ENVIRONMENT browser:$E2E_BROWSER profile:$TEST_PROFILE github"
+                -o "rp_launch_description=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              )
+            fi
+          fi
+
+          python -m pytest "${marker[@]}" "${reportportal[@]}" -v \
             --html=reports/e2e-report.html \
             --self-contained-html \
             --junitxml=reports/junit.xml
@@ -155,6 +175,9 @@ jobs:
             echo "- Profile: $TEST_PROFILE"
             echo "- Browser: $E2E_BROWSER"
             echo "- UI: $E2E_BASE_URL"
+            if [[ "$REPORTPORTAL_ENABLED" == "true" ]]; then
+              echo "- ReportPortal: $RP_ENDPOINT"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload report and Playwright artifacts

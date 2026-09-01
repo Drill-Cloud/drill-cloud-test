@@ -291,6 +291,8 @@ URL, идентификаторы тестовых данных и учётны�
 
 После каждого CI-прогона HTML-отчёт, trace, screenshot и video публикуются единым artifact на 30 дней.
 
+При включённой интеграции pytest в реальном времени отправляет результаты, логи и вложения в self-hosted ReportPortal. Развёртывание через Portainer и Nginx Proxy Manager описано в [docs/REPORTPORTAL.md](docs/REPORTPORTAL.md).
+
 ### Проверки PR тестового проекта
 
 Workflow `.github/workflows/quality.yml` уже запускается автоматически для каждого PR в `drill-cloud-test`. Он не использует секреты и выполняет:

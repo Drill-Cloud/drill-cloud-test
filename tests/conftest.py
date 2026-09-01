@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import re
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from playwright.sync_api import Browser, Page, Playwright
+from reportportal_client import RPLogger  # type: ignore[import-untyped]
 
 from drill_cloud_test.api import DrillCloudApi, capture_bearer_token, create_api_client
 from drill_cloud_test.config import TestConfig
@@ -19,6 +21,18 @@ from drill_cloud_test.sessions import AuthenticatedSessionFactory
 
 def _safe_artifact_name(node_id: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "_", node_id).strip("_")
+
+
+@pytest.fixture(scope="session")
+def reportportal_logger() -> RPLogger:
+    previous_logger_class = logging.getLoggerClass()
+    logging.setLoggerClass(RPLogger)
+    try:
+        logger = cast(RPLogger, logging.getLogger("drill_cloud_test.browser"))
+    finally:
+        logging.setLoggerClass(previous_logger_class)
+    logger.setLevel(logging.INFO)
+    return logger
 
 
 @pytest.fixture(scope="session")
@@ -86,7 +100,11 @@ def role_session_factory(
 
 
 @pytest.fixture
-def diagnostics(page: Page, request: pytest.FixtureRequest) -> Generator[BrowserDiagnostics, None, None]:
+def diagnostics(
+    page: Page,
+    request: pytest.FixtureRequest,
+    reportportal_logger: RPLogger,
+) -> Generator[BrowserDiagnostics, None, None]:
     result = BrowserDiagnostics()
     page.on("console", result.on_console)
     page.on("pageerror", result.on_page_error)
@@ -97,7 +115,31 @@ def diagnostics(page: Page, request: pytest.FixtureRequest) -> Generator[Browser
     if report and report.failed:
         artifact_dir = Path("test-results") / _safe_artifact_name(request.node.nodeid)
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        (artifact_dir / "browser-diagnostics.txt").write_text(result.as_text(), encoding="utf-8")
+        diagnostics_text = result.as_text()
+        (artifact_dir / "browser-diagnostics.txt").write_text(diagnostics_text, encoding="utf-8")
+
+        if request.config.getoption("--reportportal", default=False):
+            reportportal_logger.info(
+                "Browser diagnostics",
+                attachment={
+                    "name": "browser-diagnostics.txt",
+                    "data": diagnostics_text.encode("utf-8"),
+                    "mime": "text/plain",
+                },
+            )
+            try:
+                screenshot = page.screenshot(full_page=True)
+            except Exception as error:
+                reportportal_logger.warning("Could not capture failure screenshot: %s", error)
+            else:
+                reportportal_logger.info(
+                    "Failure screenshot",
+                    attachment={
+                        "name": "failure.png",
+                        "data": screenshot,
+                        "mime": "image/png",
+                    },
+                )
 
 
 @pytest.fixture
