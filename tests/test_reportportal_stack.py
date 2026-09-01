@@ -29,6 +29,12 @@ def test_reportportal_stack_is_ready_for_portainer_and_npm() -> None:
     assert compose["networks"]["proxy"] == {"external": True}
     assert "websecure" not in compose_text
 
+    gateway_commands = gateway["command"]
+    assert "--providers.docker.exposedbydefault=false" not in gateway_commands
+    assert "--providers.docker.constraints=Label(`traefik.expose`, `true`)" in gateway_commands
+    for service_name in ("index", "ui", "api", "uat", "jobs"):
+        assert "traefik.expose=true" in services[service_name]["labels"]
+
 
 @pytest.mark.unit
 def test_reportportal_data_uses_stable_named_volumes() -> None:

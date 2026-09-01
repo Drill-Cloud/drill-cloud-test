@@ -68,7 +68,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
       - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
       - --providers.docker.constraints=Label(`traefik.expose`, `true`)
       - --entrypoints.web.address=:8080
       - --entrypoints.traefik.address=:8081
