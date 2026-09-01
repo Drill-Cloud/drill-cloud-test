@@ -276,20 +276,20 @@ E2E_VISUAL_ENABLED=true \
 
 ## GitHub Actions
 
-В проекте три workflow:
+В проекте два workflow:
 
 - `quality.yml` — lint, форматирование, mypy, unit и сбор коллекции на каждый PR;
-- `smoke.yml` — ручной запуск, nightly и событие `dev-deployed`;
-- `release.yml` — P0+P1+P2 в Chromium и Firefox для релиза.
+- `e2e.yml` — единый ручной запуск для `dev`, `alpha` и `main`.
 
-В repository secrets необходимо создать:
+URL, идентификаторы тестовых данных и учётные записи хранятся в GitHub Environments, а не в общих repository variables/secrets. Полный список имён и готовые значения URL приведены в [docs/GITHUB_ENVIRONMENTS.md](docs/GITHUB_ENVIRONMENTS.md).
+
+В каждом Environment необходимо создать как минимум:
 
 - `E2E_USERNAME`;
 - `E2E_PASSWORD`;
-- ролевые пары `E2E_ADMIN_*`, `E2E_EDGE_*`, `E2E_NO_ROLE_*`;
-- при автоматическом seed — `E2E_DATABASE_URL` и, при необходимости, `E2E_INGEST_API_KEY`.
+- variables `E2E_BASE_URL`, `E2E_API_URL`, `E2E_AUTH_MODE` и безопасные feature flags из инструкции.
 
-ID буровых и тестовые теги задаются через repository variables с теми же именами, что в `.env.example`. После каждого CI-прогона HTML-отчёт, trace, screenshot и video публикуются единым artifact на 14 дней.
+После каждого CI-прогона HTML-отчёт, trace, screenshot и video публикуются единым artifact на 30 дней.
 
 ### Проверки PR тестового проекта
 
@@ -305,37 +305,18 @@ python -m pytest --collect-only -q
 
 Чтобы запретить merge с ошибками, в GitHub откройте `Settings → Branches`, необходимо правило для `main`, включить `Require status checks to pass before merging` и выбрать check `Test project quality / quality`.
 
-### E2E после развёртывания UI или cloud
+### Ручной E2E развёрнутого окружения
 
-Полноценный Playwright-прогон требует секретов и уже работающего стенда. Поэтому рекомендуемый порядок для PR проектов UI/cloud:
+Полноценный Playwright-прогон требует секретов и уже работающего стенда. Он запускается только вручную и не участвует в обязательных проверках pull request:
 
-1. Собрать и развернуть PR либо ветку `dev` на тестовом стенде.
-2. После успешного deployment отправить событие `dev-deployed` в `drill-cloud-test`.
-3. Workflow `smoke.yml` запустит выбранный браузер, подготовит данные при включённом seed и загрузит отчёт с Playwright-артефактами.
+1. Развернуть нужную версию на выбранном стенде.
+2. Открыть `Actions → Environment E2E → Run workflow`.
+3. Выбрать `dev`, `alpha` или `main`, профиль и браузер.
+4. Workflow дождётся доступности UI/API и загрузит отчёт с Playwright-артефактами.
 
-В deployment workflow UI/cloud необходимо добавить шаг:
+Не добавляйте `Environment E2E / e2e` в `Require status checks to pass before merging`. Ручное падение E2E останется видимым в Actions и артефактах, но не будет блокировать merge или deployment.
 
-```yaml
-- name: Start Drill Cloud E2E smoke
-  env:
-    GH_TOKEN: ${{ secrets.E2E_REPOSITORY_TOKEN }}
-  run: |
-    curl --fail-with-body \
-      --request POST \
-      --header "Accept: application/vnd.github+json" \
-      --header "Authorization: Bearer $GH_TOKEN" \
-      --header "X-GitHub-Api-Version: 2022-11-28" \
-      https://api.github.com/repos/Drill-Cloud/drill-cloud-test/dispatches \
-      --data '{"event_type":"dev-deployed"}'
-```
-
-`E2E_REPOSITORY_TOKEN` хранится в secrets репозитория UI/cloud и должен иметь право запускать Actions в `drill-cloud-test`.
-
-В `drill-cloud-test → Settings → Secrets and variables → Actions` необходимо создать:
-
-- secrets: `E2E_USERNAME`, `E2E_PASSWORD`, ролевые пары `E2E_ADMIN_*`, `E2E_EDGE_*`, `E2E_NO_ROLE_*`;
-- при seed/publisher: `E2E_DATABASE_URL`, `E2E_INGEST_API_KEY`;
-- variables: `E2E_BASE_URL`, `E2E_API_URL`, `E2E_*_EDGE_ID`, запросы тегов и `E2E_VIDEO_WS_URL`.
+В `drill-cloud-test → Settings → Environments` создайте `dev`, `alpha` и `main` по [готовому списку](docs/GITHUB_ENVIRONMENTS.md).
 
 GitHub не передаёт repository secrets workflow из внешнего fork. Поэтому PR из fork должен проходить безопасный `quality.yml`, а авторизованный E2E следует запускать после доверенного deployment, вручную через `workflow_dispatch` либо через защищённый GitHub Environment с approval.
 
