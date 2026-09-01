@@ -218,5 +218,7 @@ def pytest_html_results_table_header(cells: list[str]) -> None:
 
 
 def pytest_html_results_table_row(report: Any, cells: list[str]) -> None:
-    cells.insert(1, f"<td>{report.case_id}</td>")
-    cells.insert(2, f"<td>{report.scenario}</td>")
+    # pytest-html also invokes this hook for collection errors. Those reports
+    # do not pass through pytest_runtest_makereport and have no case metadata.
+    cells.insert(1, f"<td>{getattr(report, 'case_id', '—')}</td>")
+    cells.insert(2, f"<td>{getattr(report, 'scenario', '—')}</td>")
