@@ -44,6 +44,7 @@ addopts = [
 ]
 testpaths = ["tests"]
 pythonpath = ["src"]
+rp_log_level = "INFO"
 markers = [
   "case(id): идентификатор сценария из SMOKE_TEST_SCENARIO.md",
   "p0: обязательный smoke при каждой выкладке",

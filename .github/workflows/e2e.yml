@@ -76,6 +76,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Validate environment configuration
         shell: bash
@@ -110,7 +111,7 @@ jobs:
 
       - name: Install dependencies and browser
         run: |
-          pip install -e ".[dev]"
+          pip install --disable-pip-version-check -e .
           python -m playwright install --with-deps "$E2E_BROWSER"
 
       - name: Seed deterministic E2E data
@@ -124,7 +125,7 @@ jobs:
           marker=()
           case "$TEST_PROFILE" in
             nightly) marker=(-m "p0 or p1") ;;
-            all) ;;
+            all) marker=(-m "not unit") ;;
             *) marker=(-m "$TEST_PROFILE") ;;
           esac
 
@@ -132,7 +133,7 @@ jobs:
           if [[ "$TARGET_ENVIRONMENT" == "main" ]]; then
             case "$TEST_PROFILE" in
               nightly) marker=(-m "(p0 or p1) and not settings") ;;
-              all) marker=(-m "not settings") ;;
+              all) marker=(-m "not settings and not unit") ;;
               *) marker=(-m "$TEST_PROFILE and not settings") ;;
             esac
           fi

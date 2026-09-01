@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 from playwright.sync_api import Page, Request, expect
 
@@ -36,5 +38,5 @@ def test_current_page_does_not_create_request_storm(
 def test_unknown_spa_route_returns_to_dashboard(app_page: Page) -> None:
     """Неизвестный вложенный URL безопасно перенаправляется на dashboard."""
     app_page.goto("/definitely-unknown-e2e-route", wait_until="domcontentloaded")
-    expect(app_page).to_have_url("**/edges")
+    expect(app_page).to_have_url(re.compile(r"/edges/?(?:[?#].*)?$"))
     DashboardPage(app_page).assert_loaded()

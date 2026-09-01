@@ -18,6 +18,8 @@ from drill_cloud_test.pages import DashboardPage
 from drill_cloud_test.pages.login import ensure_authenticated
 from drill_cloud_test.sessions import AuthenticatedSessionFactory
 
+logging.getLogger("asyncio").setLevel(logging.WARNING)
+
 
 def _safe_artifact_name(node_id: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]+", "_", node_id).strip("_")

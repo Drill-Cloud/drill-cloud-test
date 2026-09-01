@@ -38,7 +38,7 @@ def test_dashboard_search_by_edge_id(app_page: Page, edge_id: str) -> None:
 
     dashboard.search_for("__drill_cloud_no_such_edge__")
     expect(dashboard.cards).to_have_count(0)
-    expect(app_page.get_by_text("В cloud-v3 пока нет буровых", exact=True)).to_be_visible()
+    expect(app_page.get_by_text("В cloud-v3 пока нет установок", exact=True)).to_be_visible()
 
     dashboard.clear_search()
     expect(dashboard.cards).to_have_count(initial_count)

@@ -35,7 +35,7 @@ class LoginPage:
 def ensure_authenticated(page: Page, config: TestConfig) -> None:
     """Open the dashboard and complete Keycloak login only when it is requested."""
     page.goto("/edges", wait_until="domcontentloaded")
-    dashboard_heading = page.get_by_role("heading", name="Буровые установки", exact=True)
+    dashboard_heading = page.get_by_role("heading", name="Установки", exact=True)
     try:
         dashboard_heading.wait_for(state="visible", timeout=5_000)
         return

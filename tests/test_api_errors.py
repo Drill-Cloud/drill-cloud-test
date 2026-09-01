@@ -17,8 +17,8 @@ def test_dashboard_handles_edge_api_failure(app_page: Page) -> None:
     """Dashboard показывает безопасное сообщение при HTTP 500 списка буровых."""
     app_page.route("**/api/edge*", _server_error)
     app_page.reload(wait_until="domcontentloaded")
-    expect(app_page.get_by_text("Не удалось загрузить список буровых", exact=False)).to_be_visible()
-    expect(app_page.get_by_role("heading", name="Буровые установки", exact=True)).to_be_visible()
+    expect(app_page.get_by_text("Не удалось загрузить список установок", exact=False)).to_be_visible()
+    expect(app_page.get_by_role("heading", name="Установки", exact=True)).to_be_visible()
 
 
 @pytest.mark.case("CURRENT-error")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from urllib.parse import quote
 
 from playwright.sync_api import Page, expect
@@ -25,7 +26,9 @@ class BasePage:
 
 class EdgeSectionPage(BasePage):
     def assert_edge_shell(self, edge_id: str) -> None:
-        expect(self.page.get_by_role("heading", name=f"Буровая установка {edge_id}")).to_be_visible()
+        edge_path = re.escape(self.edge_path(edge_id))
+        expect(self.page).to_have_url(re.compile(rf"{edge_path}(?:/[^?#]*)?(?:[?#].*)?$"))
+        expect(self.page.get_by_role("heading", level=1)).to_be_visible()
         expect(self.page.get_by_role("navigation", name="Основная навигация")).to_be_visible()
 
     def navigate(self, section: str) -> None:

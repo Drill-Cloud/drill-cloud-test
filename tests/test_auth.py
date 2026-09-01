@@ -39,6 +39,6 @@ def test_logout_hides_protected_ui(browser: Browser, test_config: TestConfig) ->
 
         logout.click()
         expect(page.locator("#username, input[name='username']").first).to_be_visible(timeout=test_config.timeout_ms)
-        expect(page.get_by_role("heading", name="Буровые установки", exact=True)).to_be_hidden()
+        expect(page.get_by_role("heading", name="Установки", exact=True)).to_be_hidden()
     finally:
         context.close()

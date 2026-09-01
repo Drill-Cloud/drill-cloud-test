@@ -12,12 +12,12 @@ class DashboardPage(BasePage):
 
     @property
     def search(self) -> Locator:
-        return self.page.get_by_placeholder("Поиск буровой")
+        return self.page.get_by_placeholder("Поиск установки")
 
     def assert_loaded(self) -> None:
-        self.assert_heading("Буровые установки")
-        expect(self.page.get_by_label("Статистика буровых")).to_be_visible()
-        expect(self.page.get_by_label("Буровые установки")).to_be_visible()
+        self.assert_heading("Установки")
+        expect(self.page.get_by_label("Статистика установок", exact=True)).to_be_visible()
+        expect(self.page.get_by_label("Установки", exact=True)).to_be_visible()
 
     def card(self, edge_id: str) -> Locator:
         return self.page.locator(f'[data-testid="edge-card"][data-edge-id="{edge_id}"]')
