@@ -1,0 +1,169 @@
+name: Environment E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: dev
+        type: choice
+        options: [dev, alpha, main]
+      profile:
+        description: Test profile
+        required: true
+        default: p0
+        type: choice
+        options: [p0, p1, p2, nightly, all]
+      browser:
+        description: Browser
+        required: true
+        default: chromium
+        type: choice
+        options: [chromium, firefox, webkit]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: ${{ inputs.environment }}
+      deployment: false
+    concurrency:
+      group: e2e-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      E2E_API_URL: ${{ vars.E2E_API_URL }}
+      E2E_BROWSER: ${{ inputs.browser }}
+      E2E_AUTH_MODE: ${{ vars.E2E_AUTH_MODE }}
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_EDGE_USERNAME: ${{ secrets.E2E_EDGE_USERNAME }}
+      E2E_EDGE_PASSWORD: ${{ secrets.E2E_EDGE_PASSWORD }}
+      E2E_NO_ROLE_USERNAME: ${{ secrets.E2E_NO_ROLE_USERNAME }}
+      E2E_NO_ROLE_PASSWORD: ${{ secrets.E2E_NO_ROLE_PASSWORD }}
+      E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      E2E_INGEST_API_KEY: ${{ secrets.E2E_INGEST_API_KEY }}
+      E2E_EDGE_ID: ${{ vars.E2E_EDGE_ID }}
+      E2E_FORBIDDEN_EDGE_ID: ${{ vars.E2E_FORBIDDEN_EDGE_ID }}
+      E2E_VIDEO_EDGE_ID: ${{ vars.E2E_VIDEO_EDGE_ID }}
+      E2E_NO_VIDEO_EDGE_ID: ${{ vars.E2E_NO_VIDEO_EDGE_ID }}
+      E2E_VIDEO_WS_URL: ${{ vars.E2E_VIDEO_WS_URL }}
+      E2E_INDICATOR_QUERY: ${{ vars.E2E_INDICATOR_QUERY }}
+      E2E_HISTORY_TAG_QUERY: ${{ vars.E2E_HISTORY_TAG_QUERY }}
+      E2E_LIVE_TAG: ${{ vars.E2E_LIVE_TAG }}
+      E2E_REQUIRE_HISTORY_DATA: ${{ vars.E2E_REQUIRE_HISTORY_DATA }}
+      E2E_REQUIRE_VIDEO_PLAYBACK: ${{ vars.E2E_REQUIRE_VIDEO_PLAYBACK }}
+      E2E_LIVE_WAIT_SECONDS: ${{ vars.E2E_LIVE_WAIT_SECONDS }}
+      E2E_SSE_OBSERVE_SECONDS: ${{ vars.E2E_SSE_OBSERVE_SECONDS }}
+      E2E_MAX_CURRENT_REQUESTS: ${{ vars.E2E_MAX_CURRENT_REQUESTS }}
+      E2E_VISUAL_ENABLED: ${{ vars.E2E_VISUAL_ENABLED }}
+      E2E_UI_COMMIT: ${{ vars.E2E_UI_COMMIT }}
+      E2E_CLOUD_COMMIT: ${{ vars.E2E_CLOUD_COMMIT }}
+      TEST_PROFILE: ${{ inputs.profile }}
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate environment configuration
+        shell: bash
+        run: |
+          [[ -n "$E2E_BASE_URL" ]] || { echo "E2E_BASE_URL is not configured"; exit 1; }
+          [[ -n "$E2E_API_URL" ]] || { echo "E2E_API_URL is not configured"; exit 1; }
+          [[ -n "$E2E_USERNAME" ]] || { echo "E2E_USERNAME secret is not configured"; exit 1; }
+          [[ -n "$E2E_PASSWORD" ]] || { echo "E2E_PASSWORD secret is not configured"; exit 1; }
+
+          if [[ "$TARGET_ENVIRONMENT" == "main" ]]; then
+            [[ "${{ vars.E2E_SEED_ENABLED }}" != "true" ]] || { echo "Seed is forbidden on main"; exit 1; }
+            [[ "${{ vars.E2E_PUBLISH_LIVE }}" != "true" ]] || { echo "Live publisher is forbidden on main"; exit 1; }
+          fi
+
+      - name: Wait for UI and API
+        shell: bash
+        run: |
+          wait_for_url() {
+            local url="$1"
+            for attempt in {1..30}; do
+              if curl --fail --silent --show-error --location --max-time 10 "$url" > /dev/null; then
+                return 0
+              fi
+              echo "Waiting for $url ($attempt/30)"
+              sleep 10
+            done
+            return 1
+          }
+
+          wait_for_url "$E2E_BASE_URL"
+          wait_for_url "$E2E_API_URL/health"
+
+      - name: Install dependencies and browser
+        run: |
+          pip install -e ".[dev]"
+          python -m playwright install --with-deps "$E2E_BROWSER"
+
+      - name: Seed deterministic E2E data
+        if: inputs.environment != 'main' && vars.E2E_SEED_ENABLED == 'true'
+        run: python scripts/seed_test_data.py seed
+
+      - name: Run E2E suite
+        shell: bash
+        run: |
+          mkdir -p reports
+          marker=()
+          case "$TEST_PROFILE" in
+            nightly) marker=(-m "p0 or p1") ;;
+            all) ;;
+            *) marker=(-m "$TEST_PROFILE") ;;
+          esac
+
+          # Main is read-only: exclude tests that temporarily save user settings.
+          if [[ "$TARGET_ENVIRONMENT" == "main" ]]; then
+            case "$TEST_PROFILE" in
+              nightly) marker=(-m "(p0 or p1) and not settings") ;;
+              all) marker=(-m "not settings") ;;
+              *) marker=(-m "$TEST_PROFILE and not settings") ;;
+            esac
+          fi
+
+          publisher_pid=""
+          if [[ "$TARGET_ENVIRONMENT" != "main" && "${{ vars.E2E_PUBLISH_LIVE }}" == "true" ]]; then
+            python scripts/publish_live_data.py --duration 3600 > reports/live-publisher.log 2>&1 &
+            publisher_pid=$!
+          fi
+          trap '[[ -n "$publisher_pid" ]] && kill "$publisher_pid" || true' EXIT
+
+          python -m pytest "${marker[@]}" -v \
+            --html=reports/e2e-report.html \
+            --self-contained-html \
+            --junitxml=reports/junit.xml
+
+      - name: Add run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Drill Cloud E2E"
+            echo "- Environment: $TARGET_ENVIRONMENT"
+            echo "- Profile: $TEST_PROFILE"
+            echo "- Browser: $E2E_BROWSER"
+            echo "- UI: $E2E_BASE_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report and Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ inputs.environment }}-${{ inputs.browser }}-${{ inputs.profile }}
+          path: |
+            reports/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30
