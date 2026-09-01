@@ -38,5 +38,5 @@ def test_reportportal_data_uses_stable_named_volumes() -> None:
         "opensearch": {"name": "reportportal_opensearch"},
         "storage": {"name": "reportportal_storage"},
         "analyzer-storage": {"name": "reportportal_analyzer_storage"},
-        "postgres": {"name": "reportportal_postgres"},
+        "postgres": {"name": "drillcloud_reportportal_postgres_data"},
     }

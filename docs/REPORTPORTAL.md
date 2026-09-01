@@ -189,7 +189,7 @@ python -m pytest -m p0 --reportportal `
 Данные переживают обычный redeploy stack благодаря фиксированным volumes:
 
 ```text
-reportportal_postgres
+drillcloud_reportportal_postgres_data
 reportportal_storage
 reportportal_opensearch
 reportportal_analyzer_storage

@@ -494,7 +494,7 @@ volumes:
   analyzer-storage:
     name: reportportal_analyzer_storage
   postgres:
-    name: reportportal_postgres
+    name: drillcloud_reportportal_postgres_data
 
 networks:
   reportportal:
