@@ -11,7 +11,9 @@ from playwright.sync_api import Locator, Page, ViewportSize
 
 VISUAL_FONT_DIR = Path(__file__).with_name("visual_fonts")
 VISUAL_VIEWPORT: ViewportSize = {"width": 1_440, "height": 1_200}
-VISUAL_DIFF_BLUR_RADIUS = 1
+# Chromium delegates glyph rasterization to different OS font engines. A two-pixel
+# blur removes their high-frequency text contours while preserving panel geometry.
+VISUAL_DIFF_BLUR_RADIUS = 2
 VISUAL_DIFF_THRESHOLD = 16
 
 
