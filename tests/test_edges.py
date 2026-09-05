@@ -29,6 +29,7 @@ def test_dashboard_list_and_refresh(app_page: Page, diagnostics: BrowserDiagnost
 def test_dashboard_search_by_edge_id(app_page: Page, edge_id: str) -> None:
     """Поиск находит ID, показывает empty state и восстанавливает список."""
     dashboard = DashboardPage(app_page)
+    dashboard.assert_loaded()
     initial_count = dashboard.cards.count()
 
     dashboard.search_for(edge_id)

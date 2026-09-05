@@ -14,12 +14,18 @@ class DashboardPage(BasePage):
     def search(self) -> Locator:
         return self.page.get_by_placeholder("Поиск установки")
 
+    @property
+    def empty_state(self) -> Locator:
+        return self.page.get_by_text("В cloud-v3 пока нет установок", exact=True)
+
     def assert_loaded(self) -> None:
         self.assert_heading("Установки")
         expect(self.page.get_by_label("Статистика установок", exact=True)).to_be_visible()
         # An empty CSS grid is intentionally zero-height for users without edge roles.
         # Its presence, rather than visual dimensions, proves that the dashboard loaded.
         expect(self.page.get_by_label("Установки", exact=True)).to_have_count(1)
+        # Wait for React Query to settle before callers read card counts.
+        expect(self.cards.first.or_(self.empty_state)).to_be_visible()
 
     def card(self, edge_id: str) -> Locator:
         return self.page.locator(f'[data-testid="edge-card"][data-edge-id="{edge_id}"]')
