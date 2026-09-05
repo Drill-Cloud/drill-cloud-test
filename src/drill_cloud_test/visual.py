@@ -1,27 +1,50 @@
 from __future__ import annotations
 
+import base64
 from collections.abc import Sequence
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageChops
 from playwright.sync_api import Locator, Page, ViewportSize
 
-VISUAL_STABILITY_STYLE = """
-*, *::before, *::after {
+VISUAL_FONT_DIR = Path(__file__).with_name("visual_fonts")
+VISUAL_VIEWPORT: ViewportSize = {"width": 1_440, "height": 1_200}
+
+
+@lru_cache(maxsize=1)
+def _visual_stability_style() -> str:
+    regular = base64.b64encode((VISUAL_FONT_DIR / "LiberationSans-Regular.ttf").read_bytes()).decode(
+        "ascii"
+    )
+    bold = base64.b64encode((VISUAL_FONT_DIR / "LiberationSans-Bold.ttf").read_bytes()).decode("ascii")
+    return f"""
+@font-face {{
+  font-family: "Drill Visual";
+  font-style: normal;
+  font-weight: 400;
+  src: url("data:font/ttf;base64,{regular}") format("truetype");
+}}
+@font-face {{
+  font-family: "Drill Visual";
+  font-style: normal;
+  font-weight: 700;
+  src: url("data:font/ttf;base64,{bold}") format("truetype");
+}}
+*, *::before, *::after {{
   animation: none !important;
   caret-color: transparent !important;
-  font-family: Arial, "Liberation Sans", sans-serif !important;
+  font-family: "Drill Visual", sans-serif !important;
   transition: none !important;
-}
-html {
+}}
+html {{
   scrollbar-width: none !important;
-}
-::-webkit-scrollbar {
+}}
+::-webkit-scrollbar {{
   display: none !important;
-}
+}}
 """
-VISUAL_VIEWPORT: ViewportSize = {"width": 1_440, "height": 1_200}
 
 
 def assert_visual_snapshot(
@@ -36,12 +59,20 @@ def assert_visual_snapshot(
     """Сравнивает страницу с утверждённым PNG и сохраняет понятный diff при ошибке."""
     baseline = Path("tests/visual_baselines") / browser_name / name
     page.set_viewport_size(VISUAL_VIEWPORT)
-    page.evaluate("() => document.fonts.ready")
+    page.add_style_tag(content=_visual_stability_style())
+    page.evaluate(
+        """async () => {
+          await Promise.all([
+            document.fonts.load('400 16px "Drill Visual"'),
+            document.fonts.load('700 16px "Drill Visual"'),
+            document.fonts.ready,
+          ]);
+        }"""
+    )
     actual_bytes = page.screenshot(
         full_page=True,
         animations="disabled",
         mask=list(mask),
-        style=VISUAL_STABILITY_STYLE,
     )
 
     if update:
