@@ -17,7 +17,9 @@ class DashboardPage(BasePage):
     def assert_loaded(self) -> None:
         self.assert_heading("Установки")
         expect(self.page.get_by_label("Статистика установок", exact=True)).to_be_visible()
-        expect(self.page.get_by_label("Установки", exact=True)).to_be_visible()
+        # An empty CSS grid is intentionally zero-height for users without edge roles.
+        # Its presence, rather than visual dimensions, proves that the dashboard loaded.
+        expect(self.page.get_by_label("Установки", exact=True)).to_have_count(1)
 
     def card(self, edge_id: str) -> Locator:
         return self.page.locator(f'[data-testid="edge-card"][data-edge-id="{edge_id}"]')

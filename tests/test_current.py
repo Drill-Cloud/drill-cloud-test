@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 import time
+from copy import deepcopy
+from datetime import UTC, datetime
 
 import pytest
 from playwright.sync_api import Page, expect
 
+from drill_cloud_test.api import DrillCloudApi
 from drill_cloud_test.config import TestConfig
 from drill_cloud_test.pages import IndicatorsPage
 
@@ -37,23 +41,87 @@ def test_current_indicators_and_search(app_page: Page, edge_id: str, test_config
 @pytest.mark.case("CURRENT-02")
 @pytest.mark.p1
 @pytest.mark.current
-def test_live_indicator_changes_without_reload(app_page: Page, edge_id: str, test_config: TestConfig) -> None:
-    """Заранее определённый live-тег меняет значение без обновления страницы."""
-    if not test_config.live_tag:
-        pytest.skip("Для проверки live-изменения задайте E2E_LIVE_TAG")
+def test_live_indicator_changes_without_reload(
+    app_page: Page,
+    edge_id: str,
+    test_config: TestConfig,
+    api_client: DrillCloudApi,
+) -> None:
+    """Live-тег меняется без reload; без publisher используется безопасный SSE-стаб."""
+    live_tag = test_config.live_tag
+    if not live_tag:
+        current = api_client.get_current(edge_id)
+        items = current.get("items", [])
+        assert isinstance(items, list) and items, f"Для {edge_id!r} нет current-данных"
+        source = next((item for item in items if isinstance(item.get("value"), (int, float))), items[0])
+        live_tag = str(source["tag"])
+        first = deepcopy(current)
+        second = deepcopy(current)
+        now = datetime.now(UTC).isoformat()
+        base_value = float(source.get("value") or 0)
+        for snapshot, value in ((first, base_value + 1), (second, base_value + 2)):
+            item = next(candidate for candidate in snapshot["items"] if candidate.get("tag") == live_tag)
+            item["value"] = value
+            item["updatedAt"] = now
+            item["time"] = now
+
+        snapshots_json = json.dumps([first, second], ensure_ascii=False)
+        app_page.add_init_script(
+            script=f"""
+            (() => {{
+              const snapshots = {snapshots_json};
+              class SyntheticEventSource {{
+                constructor(url) {{
+                  this.url = String(url);
+                  this.readyState = 0;
+                  this.onopen = null;
+                  this.onerror = null;
+                  this.onmessage = null;
+                  this.index = 0;
+                  this.openTimer = setTimeout(() => {{
+                    this.readyState = 1;
+                    this.onopen?.({{ type: 'open' }});
+                  }}, 20);
+                  this.timer = setInterval(() => {{
+                    const data = JSON.stringify(snapshots[this.index % snapshots.length]);
+                    this.index += 1;
+                    this.onmessage?.({{ type: 'message', data }});
+                  }}, 400);
+                }}
+                close() {{
+                  clearTimeout(this.openTimer);
+                  clearInterval(this.timer);
+                  this.readyState = 2;
+                }}
+                addEventListener(type, listener) {{ this[`on${{type}}`] = listener; }}
+                removeEventListener(type, listener) {{
+                  if (this[`on${{type}}`] === listener) this[`on${{type}}`] = null;
+                }}
+              }}
+              SyntheticEventSource.CONNECTING = 0;
+              SyntheticEventSource.OPEN = 1;
+              SyntheticEventSource.CLOSED = 2;
+              Object.defineProperty(window, 'EventSource', {{
+                configurable: true,
+                writable: true,
+                value: SyntheticEventSource,
+              }});
+            }})()
+            """
+        )
 
     indicators = IndicatorsPage(app_page)
     indicators.open_edge(edge_id)
     indicators.assert_loaded(edge_id)
-    initial = indicators.value_for_tag(test_config.live_tag)
+    initial = indicators.value_for_tag(live_tag)
     deadline = time.monotonic() + test_config.live_wait_seconds
 
     while time.monotonic() < deadline:
         app_page.wait_for_timeout(1_000)
-        if indicators.value_for_tag(test_config.live_tag) != initial:
+        if indicators.value_for_tag(live_tag) != initial:
             return
 
-    pytest.fail(f"Значение {test_config.live_tag!r} не изменилось за {test_config.live_wait_seconds} секунд: {initial}")
+    pytest.fail(f"Значение {live_tag!r} не изменилось за {test_config.live_wait_seconds} секунд: {initial}")
 
 
 @pytest.mark.case("CURRENT-03")

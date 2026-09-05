@@ -176,17 +176,17 @@ bash scripts/bootstrap.sh --all-browsers
 | `E2E_ADMIN_*`, `E2E_EDGE_*`, `E2E_NO_ROLE_*` | отдельные учётные записи для матрицы ролей | для role-тестов |
 | `E2E_API_TOKEN` | готовый Bearer token вместо перехвата токена UI | опционально |
 | `E2E_EDGE_ID` | буровая с current/history | рекомендуется; иначе первая карточка |
-| `E2E_FORBIDDEN_EDGE_ID` | буровая, запрещённая edge-пользователю | для проверки 403 |
-| `E2E_VIDEO_EDGE_ID` | буровая с рабочей камерой | для VIDEO-01 |
-| `E2E_NO_VIDEO_EDGE_ID` | буровая без камер | для VIDEO-03 |
+| `E2E_FORBIDDEN_EDGE_ID` | буровая, запрещённая edge-пользователю | опционально; иначе выбирается автоматически |
+| `E2E_VIDEO_EDGE_ID` | буровая с рабочей камерой | опционально; иначе ищется по API |
+| `E2E_NO_VIDEO_EDGE_ID` | буровая без камер | опционально; иначе ищется по API |
 | `E2E_INDICATOR_QUERY` | стабильный поиск показателя | опционально |
-| `E2E_HISTORY_TAG_QUERY` | показатель с историей | рекомендуется |
-| `E2E_LIVE_TAG` | гарантированно меняющийся тег | для CURRENT-02 |
+| `E2E_HISTORY_TAG_QUERY` | показатель с историей | опционально; иначе берётся первый current-тег |
+| `E2E_LIVE_TAG` | гарантированно меняющийся тег | опционально; без него UI проверяется на синтетическом SSE |
 | `E2E_REQUIRE_HISTORY_DATA` | требовать canvas, не принимать empty state | подготовленный стенд |
 | `E2E_REQUIRE_VIDEO_PLAYBACK` | ждать фактическое воспроизведение | подготовленный поток |
 | `E2E_DATABASE_URL` | PostgreSQL для seed/cleanup | только подготовка данных |
 | `E2E_INGEST_API_KEY` | ключ `/ingest`, если он включён | live publisher |
-| `E2E_VISUAL_ENABLED` | включить visual regression | по умолчанию `false` |
+| `E2E_VISUAL_ENABLED` | включить visual regression | по умолчанию `true`; workflow всегда включает |
 | `E2E_UPDATE_SNAPSHOTS` | осознанно перезаписать visual baselines | только локально |
 | `E2E_UI_COMMIT`, `E2E_CLOUD_COMMIT` | версии стенда в отчёте | рекомендуется в CI |
 
@@ -237,7 +237,7 @@ VENV_PYTHON=.venv/Scripts/python.exe  # Git Bash в Windows
 
 ## Visual regression
 
-Visual-тесты выключены по умолчанию. Первый утверждённый эталон создаётся только после ручной проверки страницы:
+Visual-тесты входят в P2 и включены по умолчанию. Первый утверждённый эталон создаётся только после ручной проверки страницы:
 
 ```bash
 E2E_VISUAL_ENABLED=true E2E_UPDATE_SNAPSHOTS=true \

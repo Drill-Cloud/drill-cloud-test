@@ -186,6 +186,32 @@ def api_client(
         client.close()
 
 
+def _discover_camera_edge(api_client: DrillCloudApi, *, with_cameras: bool) -> str:
+    edges = api_client.get_edges().get("items", [])
+    assert isinstance(edges, list) and edges, "На стенде нет буровых для проверки видео"
+
+    for edge in edges:
+        edge_id = str(edge.get("id", "")).strip()
+        if not edge_id:
+            continue
+        cameras = api_client.get_cameras(edge_id).get("items", [])
+        if isinstance(cameras, list) and bool(cameras) is with_cameras:
+            return edge_id
+
+    expected = "с камерами" if with_cameras else "без камер"
+    raise AssertionError(f"На стенде не найдена буровая {expected}")
+
+
+@pytest.fixture
+def video_edge_id(api_client: DrillCloudApi, test_config: TestConfig) -> str:
+    return test_config.video_edge_id or _discover_camera_edge(api_client, with_cameras=True)
+
+
+@pytest.fixture
+def no_video_edge_id(api_client: DrillCloudApi, test_config: TestConfig) -> str:
+    return test_config.no_video_edge_id or _discover_camera_edge(api_client, with_cameras=False)
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]) -> Generator[None, Any, None]:
     outcome = yield

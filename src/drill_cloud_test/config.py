@@ -129,7 +129,7 @@ class TestConfig:
             live_wait_seconds=_read_int("E2E_LIVE_WAIT_SECONDS", 30, minimum=1),
             sse_observe_seconds=_read_int("E2E_SSE_OBSERVE_SECONDS", 8, minimum=2),
             max_current_requests=_read_int("E2E_MAX_CURRENT_REQUESTS", 12, minimum=2),
-            visual_enabled=_read_bool("E2E_VISUAL_ENABLED", False),
+            visual_enabled=_read_bool("E2E_VISUAL_ENABLED", True),
             update_snapshots=_read_bool("E2E_UPDATE_SNAPSHOTS", False),
             database_url=_optional("E2E_DATABASE_URL"),
             ingest_api_key=_optional("E2E_INGEST_API_KEY"),

@@ -6,6 +6,7 @@ from drill_cloud_test.api import JsonObject
 def default_ui_settings() -> JsonObject:
     """Mirror frontend defaults for isolated API fixtures and cleanup only."""
     return {
+        "version": 1,
         "player": {
             "liveBufferLatencyMaxLatency": 24,
             "liveBufferLatencyMinRemain": 8,

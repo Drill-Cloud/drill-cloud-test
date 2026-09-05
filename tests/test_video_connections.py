@@ -12,11 +12,10 @@ from drill_cloud_test.waits import wait_until
 @pytest.mark.p1
 @pytest.mark.video
 @pytest.mark.integration
-def test_video_websockets_are_closed_and_recreated_once(app_page: Page, test_config: TestConfig) -> None:
+def test_video_websockets_are_closed_and_recreated_once(
+    app_page: Page, test_config: TestConfig, video_edge_id: str
+) -> None:
     """Уход с Video закрывает camera WebSocket, возврат создаёт по одному новому соединению."""
-    if not test_config.video_edge_id:
-        pytest.skip("Для WebSocket-теста задайте E2E_VIDEO_EDGE_ID")
-
     sockets: list[WebSocket] = []
     closed_urls: list[str] = []
 
@@ -26,7 +25,7 @@ def test_video_websockets_are_closed_and_recreated_once(app_page: Page, test_con
 
     app_page.on("websocket", observe_socket)
     video = VideoPage(app_page)
-    video.open_edge(test_config.video_edge_id)
+    video.open_edge(video_edge_id)
     expect(video.cameras.first).to_be_visible()
     camera_count = video.cameras.count()
     wait_until(

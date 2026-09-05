@@ -8,6 +8,7 @@ from playwright.sync_api import Page, Request, Route, expect
 from drill_cloud_test.api import DrillCloudApi
 from drill_cloud_test.config import TestConfig
 from drill_cloud_test.pages import ArchivePage, EdgePage, IndicatorsPage
+from drill_cloud_test.ui_settings import default_ui_settings
 from drill_cloud_test.waits import wait_until
 
 
@@ -56,10 +57,7 @@ def test_polling_takes_over_when_sse_is_unavailable(
     """При обрыве EventSource UI переключается на контролируемый fallback polling."""
     original_response = api_client.get_ui_settings()
     original_settings = original_response.get("settings")
-    if original_settings is None:
-        pytest.skip("Для управляемого fallback-теста сначала сохраните пользовательские настройки")
-
-    temporary_settings = deepcopy(original_settings)
+    temporary_settings = deepcopy(original_settings or default_ui_settings())
     temporary_settings["liveChart"]["fallbackPollingMs"] = 1_000
     polls: list[Request] = []
 
@@ -82,4 +80,7 @@ def test_polling_takes_over_when_sse_is_unavailable(
             description="минимум два current polling запроса",
         )
     finally:
-        api_client.save_ui_settings(original_settings)
+        if original_settings is None:
+            api_client.delete_ui_settings()
+        else:
+            api_client.save_ui_settings(original_settings)

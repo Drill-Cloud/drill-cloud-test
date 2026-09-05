@@ -5,7 +5,7 @@ from copy import deepcopy
 import pytest
 from playwright.sync_api import Playwright, expect
 
-from drill_cloud_test.api import JsonObject, capture_bearer_token, create_api_client
+from drill_cloud_test.api import DrillCloudApi, JsonObject, capture_bearer_token, create_api_client
 from drill_cloud_test.config import TestConfig
 from drill_cloud_test.pages import DashboardPage, EdgePage
 from drill_cloud_test.sessions import AuthenticatedSessionFactory
@@ -38,7 +38,9 @@ def test_admin_user_can_see_edges(role_session_factory: AuthenticatedSessionFact
 @pytest.mark.p1
 @pytest.mark.auth
 def test_edge_user_cannot_open_forbidden_edge(
-    role_session_factory: AuthenticatedSessionFactory, test_config: TestConfig
+    role_session_factory: AuthenticatedSessionFactory,
+    test_config: TestConfig,
+    api_client: DrillCloudApi,
 ) -> None:
     """Пользователь ограниченной буровой не получает current-данные чужой буровой."""
     credentials = _require_credentials(
@@ -46,15 +48,28 @@ def test_edge_user_cannot_open_forbidden_edge(
         test_config.edge_password,
         "E2E_EDGE_USERNAME и E2E_EDGE_PASSWORD",
     )
-    if not test_config.forbidden_edge_id:
-        pytest.skip("Для проверки 403 задайте E2E_FORBIDDEN_EDGE_ID")
-
     with role_session_factory.open("edge-user", *credentials) as session:
+        forbidden_edge_id = test_config.forbidden_edge_id
+        if not forbidden_edge_id:
+            allowed = set(
+                session.page.get_by_test_id("edge-card").evaluate_all(
+                    "cards => cards.map(card => card.getAttribute('data-edge-id')).filter(Boolean)"
+                )
+            )
+            all_edges = api_client.get_edges().get("items", [])
+            candidates = [str(edge.get("id")) for edge in all_edges if str(edge.get("id")) not in allowed]
+            assert candidates, "Нет буровой, запрещённой edge-пользователю"
+            forbidden_edge_id = candidates[0]
+
         edge = EdgePage(session.page)
         with session.page.expect_response(
-            lambda response: "/api/current?" in response.url and "/events" not in response.url
+            lambda response: (
+                "/api/current?" in response.url
+                and "/events" not in response.url
+                and f"edge={forbidden_edge_id}" in response.url
+            )
         ) as response_info:
-            edge.open_edge(test_config.forbidden_edge_id)
+            edge.open_edge(forbidden_edge_id)
         assert response_info.value.status == 403
 
 
@@ -74,7 +89,7 @@ def test_user_without_edge_roles_sees_empty_list(
         dashboard = DashboardPage(session.page)
         dashboard.assert_loaded()
         expect(dashboard.cards).to_have_count(0)
-        expect(session.page.get_by_text("В cloud-v3 пока нет буровых", exact=True)).to_be_visible()
+        expect(session.page.get_by_text("В cloud-v3 пока нет установок", exact=True)).to_be_visible()
 
 
 @pytest.mark.case("SETTINGS-03-user-isolation")

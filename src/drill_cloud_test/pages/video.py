@@ -15,10 +15,10 @@ class VideoPage(EdgeSectionPage):
 
     def assert_loaded(self, edge_id: str) -> None:
         self.assert_edge_shell(edge_id)
-        expect(self.page.get_by_role("heading", name="Видеопотоки буровой")).to_be_visible()
+        expect(self.page.get_by_role("heading", name="Видеопотоки установки")).to_be_visible()
 
     def assert_no_cameras(self) -> None:
-        expect(self.page.get_by_text("Камеры для этой буровой не настроены", exact=True)).to_be_visible()
+        expect(self.page.get_by_text("Камеры для этой установки не настроены", exact=True)).to_be_visible()
 
     def assert_first_camera_visible(self) -> Locator:
         camera = self.cameras.first
