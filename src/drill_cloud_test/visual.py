@@ -6,11 +6,13 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter
 from playwright.sync_api import Locator, Page, ViewportSize
 
 VISUAL_FONT_DIR = Path(__file__).with_name("visual_fonts")
 VISUAL_VIEWPORT: ViewportSize = {"width": 1_440, "height": 1_200}
+VISUAL_DIFF_BLUR_RADIUS = 1
+VISUAL_DIFF_THRESHOLD = 16
 
 
 @lru_cache(maxsize=1)
@@ -96,16 +98,25 @@ def assert_visual_snapshot(
             f"Фактический снимок: {artifacts / name}"
         )
 
-    difference = ImageChops.difference(expected, actual)
-    significant = difference.convert("L").point(lambda value: 255 if value > 12 else 0)
-    changed_pixels = sum(significant.histogram()[1:])
-    changed_ratio = changed_pixels / (actual.width * actual.height)
+    changed_ratio = _changed_pixel_ratio(expected, actual)
 
     if changed_ratio > max_changed_ratio:
+        difference = ImageChops.difference(expected, actual)
         _save_artifacts(artifacts, name, actual, difference)
         raise AssertionError(
-            f"Visual diff {changed_ratio:.2%} превышает допуск {max_changed_ratio:.2%}. Снимок и diff: {artifacts}"
+            f"Visual structural diff {changed_ratio:.2%} превышает допуск {max_changed_ratio:.2%}. "
+            f"Снимок и diff: {artifacts}"
         )
+
+
+def _changed_pixel_ratio(expected: Image.Image, actual: Image.Image) -> float:
+    """Считает структурную разницу, подавляя антиалиасинговый шум разных ОС."""
+    stable_expected = expected.filter(ImageFilter.GaussianBlur(VISUAL_DIFF_BLUR_RADIUS))
+    stable_actual = actual.filter(ImageFilter.GaussianBlur(VISUAL_DIFF_BLUR_RADIUS))
+    difference = ImageChops.difference(stable_expected, stable_actual).convert("L")
+    significant = difference.point(lambda value: 255 if value > VISUAL_DIFF_THRESHOLD else 0)
+    changed_pixels = sum(significant.histogram()[1:])
+    return changed_pixels / (actual.width * actual.height)
 
 
 def _save_artifacts(
