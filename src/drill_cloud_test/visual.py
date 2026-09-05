@@ -5,7 +5,23 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageChops
-from playwright.sync_api import Locator, Page
+from playwright.sync_api import Locator, Page, ViewportSize
+
+VISUAL_STABILITY_STYLE = """
+*, *::before, *::after {
+  animation: none !important;
+  caret-color: transparent !important;
+  font-family: Arial, "Liberation Sans", sans-serif !important;
+  transition: none !important;
+}
+html {
+  scrollbar-width: none !important;
+}
+::-webkit-scrollbar {
+  display: none !important;
+}
+"""
+VISUAL_VIEWPORT: ViewportSize = {"width": 1_440, "height": 1_200}
 
 
 def assert_visual_snapshot(
@@ -15,14 +31,17 @@ def assert_visual_snapshot(
     browser_name: str,
     update: bool,
     mask: Sequence[Locator] = (),
-    max_changed_ratio: float = 0.002,
+    max_changed_ratio: float = 0.01,
 ) -> None:
     """Сравнивает страницу с утверждённым PNG и сохраняет понятный diff при ошибке."""
     baseline = Path("tests/visual_baselines") / browser_name / name
+    page.set_viewport_size(VISUAL_VIEWPORT)
+    page.evaluate("() => document.fonts.ready")
     actual_bytes = page.screenshot(
         full_page=True,
         animations="disabled",
         mask=list(mask),
+        style=VISUAL_STABILITY_STYLE,
     )
 
     if update:

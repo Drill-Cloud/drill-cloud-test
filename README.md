@@ -252,6 +252,7 @@ E2E_VISUAL_ENABLED=true \
 ```
 
 Эталоны лежат в `tests/visual_baselines/<browser>/`. При несовпадении фактический PNG и diff сохраняются в `test-results/visual/`.
+Для одинакового результата на Windows и Linux во время снимка тест фиксирует viewport `1440×1200`, совместимый Arial/Liberation Sans, отключает анимации и скрывает scrollbar.
 
 ## Запуск против локального UI
 
